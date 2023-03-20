@@ -1,0 +1,124 @@
+#include <StringSplitter.h>
+
+int Comenzar_Irradiacion = 0;
+int Frecuencia = 2450;
+int Potencia = 1000;
+int Tiempo_encendido = 8;
+int Tiempo_apagado = 15;
+int Numero_pulsos = 116;
+int Pulsos_enviados = 0;
+String StringEntrada;
+int PinEnable = 2;
+int PinAlim = 3;
+int PinGenerador = 4;
+int tiempo, tiempoanterior, deltaT, tiempotranscurrido = 0;
+int estado = 0;
+bool primerllamadoencendido = true;
+bool primerllamadoapagado, YaTermino = false;
+
+void setup(){
+  Serial.begin(9600);
+  pinMode(PinEnable, OUTPUT);
+  pinMode(PinAlim, OUTPUT);
+  pinMode(PinGenerador, OUTPUT);
+  digitalWrite(PinEnable,LOW);
+  digitalWrite(PinAlim,LOW);
+  digitalWrite(PinGenerador,LOW);
+}
+
+void loop(){
+   /* Lee el puerto serial cuando haya algún cambio de dato en la interfaz gráfica */
+    if (Serial.available() > 0)
+   {
+    StringEntrada = Serial.readStringUntil('\n');
+    StringSplitter *splitter = new StringSplitter(StringEntrada, ',', 14);  // parámetros: StringSplitter(string_to_split, delimiter, limit)
+    Comenzar_Irradiacion = splitter->getItemAtIndex(0).toInt();
+    Tiempo_encendido = splitter->getItemAtIndex(1).toInt();
+    Tiempo_apagado = splitter->getItemAtIndex(2).toInt();
+    Numero_pulsos = splitter->getItemAtIndex(3).toInt();
+  }
+
+    tiempoanterior = tiempo;
+    tiempo = millis();
+    deltaT = tiempo-tiempoanterior;
+    tiempotranscurrido += deltaT;
+
+  if (Comenzar_Irradiacion == 1){
+    if (primerllamadoencendido == true){ /*Protocolo encendido*/
+      digitalWrite(PinAlim, HIGH);
+      delay(500);
+      digitalWrite(PinEnable, HIGH);
+      delay(500);
+      digitalWrite(PinGenerador, HIGH);
+      delay(500);
+      primerllamadoencendido = false;
+      primerllamadoapagado = true;
+      estado=1;
+      tiempotranscurrido=0;
+      Pulsos_enviados = 0;
+    }
+    switch(estado){
+      case 0: //Idle
+        break;
+      case 1: //Encendido el generador
+        if (tiempotranscurrido>=Tiempo_encendido*1000){
+          estado=2;
+          tiempotranscurrido=0;
+          digitalWrite(PinGenerador,LOW);
+          Pulsos_enviados ++;
+        }
+        break;
+      case 2: //Apagado el generador
+        if (tiempotranscurrido>=Tiempo_apagado*1000){
+          estado=1;
+          tiempotranscurrido=0;
+          digitalWrite(PinGenerador,HIGH);
+        }
+        break;
+    }
+  }
+
+  if (Comenzar_Irradiacion == false){ /*Protocolo apagado*/
+    if (primerllamadoapagado == true){
+      digitalWrite(PinGenerador, LOW);
+      delay(500);
+      digitalWrite(PinEnable, LOW);
+      delay(500);
+      digitalWrite(PinAlim, LOW);
+      delay(500);
+      primerllamadoapagado = false;
+    }
+    primerllamadoencendido = true;
+  }
+
+  DatosOperacion();
+}
+
+void DatosOperacion(){
+  Serial.print("Micro Malaria. Irradiacion on/off: ");
+  Serial.print(Comenzar_Irradiacion);
+  Serial.print(", ");
+  Serial.print("Freq: ");
+  Serial.print(Frecuencia);
+  Serial.print(", ");
+  Serial.print("Pow: ");
+  Serial.print(Potencia);
+  Serial.print(", ");
+  Serial.print("T_ON: ");
+  Serial.print(Tiempo_encendido);
+  Serial.print(", ");
+  Serial.print("T_OFF: ");
+  Serial.print(Tiempo_apagado);
+  Serial.print(", ");
+  Serial.print("Pulsos: ");
+  Serial.print(Numero_pulsos);
+  Serial.print(", ");
+  Serial.print("estado: ");
+  Serial.print(estado);
+  Serial.print(", ");
+  Serial.print("ElapsedT: ");
+  Serial.print(tiempotranscurrido);
+  Serial.print(", ");
+  Serial.print("Pulsos_sent: ");
+  Serial.println(Pulsos_enviados);
+}
